@@ -180,6 +180,75 @@ test('14. upsert dengan id dari HP idempoten (antrian offline)', async () => {
   assert.equal(data.length, 1);
 });
 
+test('16. B tidak bisa UPDATE/DELETE baris milik keluarga A di tabel mana pun', async () => {
+  const u1 = await sb.B.from('transaksi').update({ catatan: 'dibajak' }).eq('id', trxA.id).select();
+  assert.equal(u1.data?.length ?? 0, 0);
+  const d1 = await sb.B.from('transaksi').delete().eq('id', trxA.id).select();
+  assert.equal(d1.data?.length ?? 0, 0);
+  const u2 = await sb.B.from('kategori').update({ nama: 'dibajak' }).eq('id', katA).select();
+  assert.equal(u2.data?.length ?? 0, 0);
+  const u3 = await sb.B.from('keluarga').update({ nama: 'dibajak' }).eq('id', KA).select();
+  assert.equal(u3.data?.length ?? 0, 0);
+  const ups = await sb.B.from('transaksi').upsert({ ...trxA, keluarga_id: KB, catatan: 'x' }, { onConflict: 'id' });
+  assert.ok(ups.error, 'upsert ke id milik keluarga lain harus error');
+  const cek = await sb.A.from('transaksi').select('catatan').eq('id', trxA.id).single();
+  assert.equal(cek.data.catatan, 'uji rls');
+});
+
+test('17. INSERT langsung ke anggota ditolak (harus lewat RPC pemilik)', async () => {
+  const r = await sb.B.from('anggota').insert({ keluarga_id: KA, user_id: uid.B, nama_tampilan: 'Penyusup', peran: 'pemilik' });
+  assert.ok(r.error);
+  const r2 = await sb.A2.from('anggota').insert({ keluarga_id: KA, user_id: uid.B, nama_tampilan: 'Penyusup', peran: 'anggota' });
+  assert.ok(r2.error);
+});
+
+test('18. id, user_id, dibuat_oleh tidak bisa diubah', async () => {
+  const r1 = await sb.A.from('keluarga').update({ dibuat_oleh: null }).eq('id', KA).select();
+  assert.ok(r1.error, 'dibuat_oleh terkunci');
+  const r2 = await sb.A.from('anggota').update({ user_id: uid.B }).eq('keluarga_id', KA).eq('user_id', uid.A2).select();
+  assert.ok(r2.error, 'user_id terkunci');
+  const r3 = await sb.A.from('transaksi').update({ id: crypto.randomUUID() }).eq('id', trxA.id).select();
+  assert.ok(r3.error, 'id transaksi terkunci');
+  const r4 = await sb.A.from('kategori').update({ id: crypto.randomUUID() }).eq('id', katA).select();
+  assert.ok(r4.error, 'id kategori terkunci');
+});
+
+test('19. transaksi terhapus tidak bisa dihidupkan lagi oleh kiriman ulang', async () => {
+  const id = crypto.randomUUID();
+  const baris = { id, keluarga_id: KA, jenis: 'keluar', tanggal: '2026-10-27', jumlah: 5000, kategori_id: katA, dompet_id: dompetA, dihapus_at: null };
+  await sb.A2.from('transaksi').upsert(baris, { onConflict: 'id' });
+  await sb.A.from('transaksi').update({ dihapus_at: new Date().toISOString() }).eq('id', id);
+  const r = await sb.A2.from('transaksi').upsert({ ...baris, catatan: 'kiriman lama' }, { onConflict: 'id' }).select().single();
+  assert.ifError(r.error);
+  assert.ok(r.data.dihapus_at, 'harus tetap terhapus');
+});
+
+test('20. kategori/dompet tidak bisa dihapus keras; peran lihat tidak bisa DELETE', async () => {
+  const k = await sb.A.from('kategori').delete().eq('id', katA).select();
+  assert.ok(k.error || k.data.length === 0);
+  const d = await sb.A.from('dompet').delete().eq('id', dompetA).select();
+  assert.ok(d.error || d.data.length === 0);
+  const t = await sb.AL.from('transaksi').delete().eq('id', trxA.id).select();
+  assert.ok(t.error || t.data.length === 0);
+});
+
+test('21. anon tidak bisa memanggil RPC apa pun', async () => {
+  const anon = baru();
+  for (const [fn, arg] of [['tambah_anggota', { p_keluarga: KA, p_email: 'x@x', p_nama_tampilan: 'x', p_peran: 'anggota' }],
+    ['peran_di', { k: KA }], ['anggota_dari', { k: KA }]]) {
+    const r = await anon.rpc(fn, arg);
+    assert.ok(r.error, `anon memanggil ${fn}`);
+  }
+});
+
+test('22. anggaran hanya untuk kategori keluar; jenis kategori terpakai tidak bisa diubah', async () => {
+  const katMasuk = (await sb.A.from('kategori').select('id').eq('keluarga_id', KA).eq('jenis', 'masuk').limit(1).single()).data.id;
+  const r = await sb.A.from('anggaran').insert({ keluarga_id: KA, bulan: '2026-10-01', kategori_id: katMasuk, jumlah: 1 });
+  assert.ok(r.error);
+  const u = await sb.A.from('kategori').update({ jenis: 'masuk' }).eq('id', katA).select();
+  assert.ok(u.error, 'katA sudah dipakai trxA');
+});
+
 test('15. B tidak bisa membuat keluarga atas nama orang lain / membaca kas_meta', async () => {
   const r = await sb.B.from('keluarga').insert({ nama: 'Liar', dibuat_oleh: uid.A });
   assert.ok(r.error, 'insert langsung ke keluarga harus ditolak');
