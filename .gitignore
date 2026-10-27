@@ -13,3 +13,5 @@ playwright/.cache/
 cadangan/
 *.dump
 *.sql.gz
+
+.env.uji
