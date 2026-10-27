@@ -66,7 +66,8 @@ try {
     ($1, $2, 'Uji A2', 'anggota'), ($1, $3, 'Uji A Lihat', 'lihat')`, [kA, id.A2, id.AL]);
   env.push(`UJI_KELUARGA_A=${kA}`, `UJI_KELUARGA_B=${kB}`);
   await c.query('commit');
-  fs.writeFileSync(path.resolve(AKAR, '..', '.env.uji'), env.join('\n') + '\n');
+  fs.writeFileSync(path.resolve(AKAR, '..', '.env.uji'), env.join('\n') + '\n', { mode: 0o600 });
+  fs.chmodSync(path.resolve(AKAR, '..', '.env.uji'), 0o600);
   console.log(`akun uji siap: ${Object.keys(AKUN_UJI).join(', ')}; keluarga A & B dibuat; kredensial di ../.env.uji`);
 } catch (e) {
   await c.query('rollback');

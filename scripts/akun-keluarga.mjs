@@ -57,7 +57,8 @@ try {
   const f = path.resolve(AKAR, '..', 'akun-keluarga.txt');
   fs.writeFileSync(f, [`Akun Kas Keluarga — dibuat ${new Date().toISOString().slice(0, 10)}`, `Keluarga: ${namaKeluarga}`, '',
     'nama pengguna\tkata sandi awal (ganti setelah masuk: Kelola → Akun)', ...catatan, '',
-    'Berikan kata sandi langsung ke orangnya. Hapus berkas ini setelah semua kata sandi diganti.', ''].join('\n'));
+    'Berikan kata sandi langsung ke orangnya. Hapus berkas ini setelah semua kata sandi diganti.', ''].join('\n'), { mode: 0o600 });
+  fs.chmodSync(f, 0o600); // hanya pemilik (penuh di Linux/macOS; di Windows mengikuti ACL folder)
   console.log(`selesai: ${akun.map((a) => a.userid).join(', ')} → "${namaKeluarga}" (semua pemilik). Kata sandi awal di ${f}`);
 } catch (e) {
   try { await c.query('rollback'); } catch {}
