@@ -95,6 +95,7 @@ async function pilihKeluarga() {
   }
   if (!kid) return akar.replaceChildren(halamanTanpaKeluarga({ keluar, setelahBuat: () => pilihKeluarga(), offline: true }));
   await muat();
+  if (navigator.onLine) status.menarik = true; // lencana "Sinkron…" sampai tarikan pertama selesai
   tampilkanAplikasi();
   mintaPersisten();
   if (navigator.onLine) { await sinkron(kid); await muat(); }
@@ -162,7 +163,7 @@ function render() {
   judulKeluarga.textContent = S.keluarga?.nama || 'Kas Keluarga';
 }
 
-window.addEventListener('hashchange', () => { render(); isi?.focus({ preventScroll: true }); window.scrollTo(0, 0); });
+window.addEventListener('hashchange', () => { clearTimeout(tundaRender); render(); isi?.focus({ preventScroll: true }); window.scrollTo(0, 0); });
 
 // Data berubah (hasil sinkron/aksi) → gambar ulang halaman yang bukan formulir,
 // kecuali pengguna sedang mengetik/memilih di halaman itu (keyboard HP tidak tertutup).
@@ -170,7 +171,10 @@ let tundaRender;
 dengarkanState(() => {
   if (!isi || !ruteAktif || ruteAktif.def.formulir) return;
   clearTimeout(tundaRender);
+  const ruteSaatIni = ruteAktif.nama;
   tundaRender = setTimeout(function coba() {
+    // pengguna sudah pindah halaman (mis. ke formulir Catat) → jangan gambar ulang apa pun
+    if (!isi || !ruteAktif || ruteAktif.def.formulir || ruteAktif.nama !== ruteSaatIni) return;
     const aktif = document.activeElement;
     if (aktif && isi.contains(aktif) && /^(INPUT|SELECT|TEXTAREA)$/.test(aktif.tagName)) {
       tundaRender = setTimeout(coba, 1500);

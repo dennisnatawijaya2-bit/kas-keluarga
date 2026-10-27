@@ -31,6 +31,7 @@ export function donat(data, judul) {
 
 /** Batang tren per bulan: keluar & masuk berdampingan. data: [{bulan, keluar, masuk}] */
 export function batangTren(data) {
+  if (!data.some((d) => d.keluar || d.masuk)) return null;
   const maks = Math.max(1, ...data.flatMap((d) => [d.keluar, d.masuk]));
   const L = 300, T = 140, pad = 18, lebarGrup = (L - pad) / data.length, lb = Math.min(16, lebarGrup / 2 - 3);
   const el = [];

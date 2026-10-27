@@ -239,10 +239,13 @@ export function mulaiSinkronOtomatis(keluargaId, setelah) {
   jadwalkan(0);
 }
 
-/** Hentikan sinkron & tunggu yang sedang berjalan selesai (hasil tarik-nya dibuang). */
+/**
+ * Hentikan sinkron. Menunggu yang sedang berjalan paling lama 3 detik (fetch bisa menggantung di
+ * Wi-Fi tanpa internet); aman karena `generasi` mencegah hasil tarik ditulis setelahnya.
+ */
 export async function hentikanSinkron() {
   generasi++;
   keluargaAktif = null; onSelesai = null;
   clearTimeout(timer);
-  if (berjalan) await berjalan.catch(() => {});
+  if (berjalan) await Promise.race([berjalan.catch(() => {}), new Promise((r) => setTimeout(r, 3000))]);
 }

@@ -41,7 +41,7 @@ export function ringkasan({ arg }) {
       h('span', {}, `${x.kategori.ikon} ${x.kategori.nama}`), h('strong', {}, rp(x.terpakai))))) : null,
 
     judulBagian('Tren 6 bulan'),
-    h('div', { class: 'kartu' }, batangTren(tren(S.transaksi, bulan, 6))),
+    h('div', { class: 'kartu' }, batangTren(tren(S.transaksi, bulan, 6)) || kosong('Belum ada data 6 bulan terakhir.')),
 
     judulBagian(`Tahun ${th.tahun}`),
     h('section', { class: 'kartu tiga' },
