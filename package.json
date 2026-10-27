@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "kas-keluarga",
   "private": true,
   "version": "0.1.0",
@@ -8,10 +8,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test tests/unit/",
+    "test": "node --test tests/unit/*.test.js",
     "db:push": "node scripts/db.mjs push",
     "db:status": "node scripts/db.mjs status",
-    "test:rls": "node --test tests/rls/",
+    "test:rls": "node --test --test-concurrency=1 tests/rls/*.test.js",
     "test:e2e": "playwright test"
   },
   "dependencies": {

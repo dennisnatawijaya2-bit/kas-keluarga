@@ -78,6 +78,11 @@ async function push() {
   if (!baru.length) console.log('Tidak ada migrasi baru.');
   for (const f of baru) {
     const sql = fs.readFileSync(path.join(DIR_MIGRASI, f), 'utf8');
+    // Runner yang memegang transaksi; begin/commit di dalam berkas akan merusak atomisitas.
+    if (/^\s*(begin|commit|rollback)\s*;/im.test(sql)) {
+      console.error(`GAGAL ${f}: berkas migrasi tidak boleh berisi begin/commit/rollback sendiri`);
+      await c.end(); process.exit(1);
+    }
     try {
       await c.query('begin');
       await c.query(sql);
@@ -85,9 +90,10 @@ async function push() {
       await c.query('commit');
       console.log(`dipasang: ${f}`);
     } catch (e) {
-      await c.query('rollback');
-      console.error(`GAGAL ${f}: ${e.message}`);
-      await c.end(); process.exit(1);
+      try { await c.query('rollback'); } catch {}
+      console.error(`GAGAL ${f}: ${e.message}${e.detail ? ` | detail: ${e.detail}` : ''}${e.hint ? ` | hint: ${e.hint}` : ''}${e.position ? ` | posisi: ${e.position}` : ''}`);
+      try { await c.end(); } catch {}
+      process.exit(1);
     }
   }
   await c.end();
