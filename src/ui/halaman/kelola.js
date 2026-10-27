@@ -62,6 +62,9 @@ function barisKategori(k, boleh) {
         if (baru && baru !== k.nama) { await simpanKategori({ ...k, nama: baru }); toast('Diubah'); }
       } }, 'Ubah'),
       h('button', { class: 'tombol teks kecil', onclick: async () => {
+        if (k.arsip && S.kategori.some((x) => x.id !== k.id && !x.arsip && x.jenis === k.jenis && x.nama.trim().toLowerCase() === k.nama.trim().toLowerCase())) {
+          return toast('Sudah ada kategori aktif dengan nama sama. Ubah namanya dulu.', 'galat');
+        }
         await simpanKategori({ ...k, arsip: !k.arsip }); toast(k.arsip ? 'Dipakai lagi' : 'Diarsipkan (riwayat tetap ada)');
       } }, k.arsip ? 'Pakai lagi' : 'Arsipkan')) : null);
 }
@@ -114,6 +117,9 @@ export function kelolaDompet() {
           await simpanDompet({ ...d, saldo_awal: n }); toast('Saldo awal diubah');
         } }, 'Saldo awal'),
         h('button', { class: 'tombol teks kecil', onclick: async () => {
+          if (d.arsip && S.dompet.some((x) => x.id !== d.id && !x.arsip && x.nama.trim().toLowerCase() === d.nama.trim().toLowerCase())) {
+            return toast('Sudah ada dompet aktif dengan nama sama. Ubah namanya dulu.', 'galat');
+          }
           await simpanDompet({ ...d, arsip: !d.arsip }); toast(d.arsip ? 'Dipakai lagi' : 'Diarsipkan');
         } }, d.arsip ? 'Pakai lagi' : 'Arsipkan')) : null))));
 }
@@ -131,7 +137,9 @@ export function cocokkanSaldo() {
     if (!bisaTulis()) return toast('Peranmu hanya bisa melihat', 'galat');
     const n = bacaRupiah(nyata.value);
     if (n == null) return toast('Jumlah tidak sah', 'galat');
-    const selisih = n - (saldo.get(pilih.value) || 0);
+    if (!pilih.value) return toast('Belum ada dompet aktif', 'galat');
+    // dihitung saat ditekan: data bisa sudah berubah oleh sinkron sejak halaman dibuka
+    const selisih = n - (saldoDompet(S.transaksi, S.dompet).get(pilih.value) || 0);
     if (!selisih) return toast('Sudah cocok, tidak ada penyesuaian');
     const nama = S.dompet.find((d) => d.id === pilih.value)?.nama;
     const ok = await konfirmasi({ judul: 'Buat penyesuaian?',
@@ -256,31 +264,70 @@ export function kelolaCadangan() {
       } }, 'Pulihkan')));
 }
 
-/** Gabungkan cadangan ke keluarga aktif. Bila asal keluarga lain → semua id dipetakan ulang. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+const sahBaris = {
+  kategori: (k) => UUID.test(k.id) && typeof k.nama === 'string' && k.nama.trim() && ['keluar', 'masuk'].includes(k.jenis),
+  dompet: (d) => UUID.test(d.id) && typeof d.nama === 'string' && d.nama.trim() && Number.isSafeInteger(d.saldo_awal ?? 0),
+  anggaran: (a) => UUID.test(a.kategori_id) && ISO.test(a.bulan) && Number.isSafeInteger(a.jumlah) && a.jumlah >= 0,
+  transaksi: (t) => UUID.test(t.id) && ISO.test(t.tanggal) && Number.isSafeInteger(t.jumlah) && t.jumlah !== 0
+    && ['keluar', 'masuk', 'pindah', 'penyesuaian'].includes(t.jenis) && UUID.test(t.dompet_id),
+};
+
+/** id deterministik untuk cadangan dari keluarga lain: impor ulang berkas yang sama tidak membuat dobel. */
+async function idTurunan(idLama, keluargaId) {
+  const b = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${keluargaId}:${idLama}`))).slice(0, 16);
+  b[6] = (b[6] & 0x0f) | 0x50; b[8] = (b[8] & 0x3f) | 0x80;
+  const x = [...b].map((v) => v.toString(16).padStart(2, '0')).join('');
+  return `${x.slice(0, 8)}-${x.slice(8, 12)}-${x.slice(12, 16)}-${x.slice(16, 20)}-${x.slice(20)}`;
+}
+
+/**
+ * Gabungkan cadangan ke keluarga aktif.
+ * - Keluarga sama: baris yang di HP lebih baru (updated_at) TIDAK ditimpa; yang hilang dipulihkan.
+ * - Keluarga lain: id diturunkan secara deterministik; kategori/dompet bernama sama dipakai ulang.
+ * Baris yang bentuknya tidak sah dilewati.
+ */
 export async function pulihkan(data) {
   const lain = data.keluarga?.id !== S.keluargaId;
   const peta = new Map();
-  const id = (lama) => { if (!lama) return lama; if (!lain) return lama; if (!peta.has(lama)) peta.set(lama, crypto.randomUUID()); return peta.get(lama); };
+  const id = async (lama) => (!lama || !lain ? lama : peta.get(lama) || (peta.set(lama, await idTurunan(lama, S.keluargaId)), peta.get(lama)));
+  const lokal = (tabel, i) => S[tabel].find((r) => r.id === i);
+  const lebihBaru = (tabel, r) => { const l = lokal(tabel, r.id); return l && String(l.updated_at || '') >= String(r.updated_at || ''); };
   const kunciKat = new Map(S.kategori.filter((k) => !k.arsip).map((k) => [`${k.jenis}|${k.nama.toLowerCase()}`, k.id]));
   const kunciDom = new Map(S.dompet.filter((d) => !d.arsip).map((d) => [d.nama.toLowerCase(), d.id]));
-  let n = 0;
-  // kategori/dompet bernama sama dipakai ulang (hindari bentrok nama unik)
+  let n = 0, lewat = 0;
   for (const k of data.kategori || []) {
-    const ada = kunciKat.get(`${k.jenis}|${k.nama.toLowerCase()}`);
+    if (!sahBaris.kategori(k)) { lewat++; continue; }
+    const ada = kunciKat.get(`${k.jenis}|${k.nama.trim().toLowerCase()}`);
     if (ada && (lain || ada !== k.id)) { peta.set(k.id, ada); continue; }
-    await tulis('kategori', { ...k, id: id(k.id), keluarga_id: S.keluargaId }); n++;
+    if (!lain && lebihBaru('kategori', k)) continue;
+    await tulis('kategori', { ...k, id: await id(k.id), keluarga_id: S.keluargaId }); n++;
   }
   for (const d of data.dompet || []) {
-    const ada = kunciDom.get(d.nama.toLowerCase());
+    if (!sahBaris.dompet(d)) { lewat++; continue; }
+    const ada = kunciDom.get(d.nama.trim().toLowerCase());
     if (ada && (lain || ada !== d.id)) { peta.set(d.id, ada); continue; }
-    await tulis('dompet', { ...d, id: id(d.id), keluarga_id: S.keluargaId }); n++;
+    if (!lain && lebihBaru('dompet', d)) continue;
+    await tulis('dompet', { ...d, id: await id(d.id), keluarga_id: S.keluargaId }); n++;
   }
   const ref = (x) => (x ? peta.get(x) || x : x);
-  for (const a of data.anggaran || []) { await tulis('anggaran', { ...a, id: id(a.id), keluarga_id: S.keluargaId, kategori_id: ref(a.kategori_id) }); n++; }
-  for (const t of data.transaksi || []) {
-    await tulis('transaksi', { ...t, id: id(t.id), keluarga_id: S.keluargaId, kategori_id: ref(t.kategori_id),
-      dompet_id: ref(t.dompet_id), dompet_tujuan_id: ref(t.dompet_tujuan_id) }); n++;
+  for (const a of data.anggaran || []) {
+    if (!sahBaris.anggaran(a)) { lewat++; continue; }
+    const kat = ref(a.kategori_id);
+    const sudah = S.anggaran.find((x) => x.bulan === a.bulan && x.kategori_id === kat);
+    if (sudah && (lain || String(sudah.updated_at || '') >= String(a.updated_at || ''))) continue;
+    await tulis('anggaran', { ...a, id: sudah?.id || crypto.randomUUID(), keluarga_id: S.keluargaId, kategori_id: kat }); n++;
   }
+  for (const t of data.transaksi || []) {
+    if (!sahBaris.transaksi(t)) { lewat++; continue; }
+    if (!lain && lebihBaru('transaksi', t)) continue;
+    const baru = { ...t, id: await id(t.id), keluarga_id: S.keluargaId, kategori_id: ref(t.kategori_id),
+      dompet_id: ref(t.dompet_id), dompet_tujuan_id: ref(t.dompet_tujuan_id) };
+    if (lain && lokal('transaksi', baru.id)) continue; // sudah pernah diimpor
+    await tulis('transaksi', baru); n++;
+  }
+  if (lewat) toast(`${lewat} baris tidak sah dilewati`, 'galat');
   return n;
 }
 

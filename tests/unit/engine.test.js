@@ -73,6 +73,14 @@ test('ringkasan bulan: pindah/penyesuaian/terhapus tidak masuk laporan', () => {
   assert.equal(r.sisaAnggaran, 350000);
 });
 
+test('anggaran 0 (kolom dikosongkan) = tanpa anggaran, tidak memicu peringatan', () => {
+  const nol = [{ kategori_id: 'k1', bulan: '2026-10-01', jumlah: 0 }];
+  const r = ringkasBulan({ transaksi: T, kategori: K, anggaran: nol, bulan: '2026-10' });
+  assert.equal(r.perKategori.find((x) => x.kategori.id === 'k1').status, 'tanpa');
+  assert.equal(r.totalAnggaran, 0);
+  assert.ok(!peringatan({ transaksi: T, kategori: K, anggaran: nol, bulan: '2026-10' }).some((x) => x.kode.startsWith('ANG')));
+});
+
 test('saldo dompet', () => {
   const s = saldoDompet(T, D);
   // d1: 100000 -50000 +200000 -10000 -30000 = 210000 (t6 terhapus)

@@ -17,11 +17,11 @@ export function anggaran({ arg }) {
 
   const baris = kategoriAktif('keluar').map((k) => {
     const n = nilai(k.id);
-    const masukan = h('input', { inputmode: 'numeric', 'aria-label': `Anggaran ${k.nama}`, value: n != null ? ribuan(n) : '',
+    const masukan = h('input', { inputmode: 'numeric', 'aria-label': `Anggaran ${k.nama}`, value: n ? ribuan(n) : '',
       placeholder: '—', disabled: !boleh, class: 'angka',
       onchange: async (e) => {
         const v = e.target.value.trim() === '' ? 0 : bacaRupiah(e.target.value);
-        if (v == null || v < 0) { toast('Jumlah tidak sah', 'galat'); e.target.value = n != null ? ribuan(n) : ''; return; }
+        if (v == null || v < 0) { toast('Jumlah tidak sah', 'galat'); e.target.value = n ? ribuan(n) : ''; return; }
         await simpanAnggaran(iso, k.id, v);
         e.target.value = v ? ribuan(v) : '';
         hitungTotal();
@@ -34,15 +34,15 @@ export function anggaran({ arg }) {
   });
 
   const lalu = geserBulan(bulan, -1);
-  const adaLalu = S.anggaran.some((a) => a.bulan === awalBulan(lalu));
+  const adaLalu = S.anggaran.some((a) => a.bulan === awalBulan(lalu) && a.jumlah > 0);
   const wadah = h('div', { class: 'halaman' },
     pemilihBulan(bulan, (b) => `#/anggaran/${b}`),
     h('div', { class: 'kartu baris-antara' }, h('span', {}, 'Total anggaran'), total),
     boleh && adaLalu ? h('button', { class: 'tombol kedua lebar', onclick: async (e) => {
       e.target.disabled = true;
       let n = 0;
-      for (const a of S.anggaran.filter((x) => x.bulan === awalBulan(lalu))) {
-        if (nilai(a.kategori_id) == null) { await simpanAnggaran(iso, a.kategori_id, a.jumlah); n++; }
+      for (const a of S.anggaran.filter((x) => x.bulan === awalBulan(lalu) && x.jumlah > 0)) {
+        if (!nilai(a.kategori_id)) { await simpanAnggaran(iso, a.kategori_id, a.jumlah); n++; }
       }
       toast(n ? `${n} anggaran disalin dari ${namaBulan(lalu)}` : 'Semua kategori sudah punya anggaran');
       location.reload();

@@ -1,0 +1,67 @@
+name: Uji & terbitkan ke GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  bangun:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Pindai rahasia di seluruh riwayat git (tanpa action pihak ketiga)
+        run: |
+          pola='sb_secret_[A-Za-z0-9_-]{10,}|eyJhbGciOi[A-Za-z0-9_-]{20,}|postgres(ql)?://[^ ]*:[^ @]+@|SUPABASE_DB_PASSWORD=[^[:space:]]+|UJI_[A-Z0-9]+_PASSWORD='
+          if git log -p --all | grep -v -E '^[-]|pola=' | grep -E -- "$pola"; then echo "Kemungkinan rahasia ter-commit"; exit 1; fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Uji unit
+        run: npm test
+      - name: Tolak secret key di bundel
+        run: |
+          if [ -z "${VITE_SUPABASE_URL}" ] || [ -z "${VITE_SUPABASE_PUBLISHABLE_KEY}" ]; then
+            echo "Variabel VITE_SUPABASE_URL / VITE_SUPABASE_PUBLISHABLE_KEY belum diisi di Settings > Secrets and variables > Actions > Variables"; exit 1; fi
+          case "${VITE_SUPABASE_PUBLISHABLE_KEY}" in sb_publishable_*) ;; *) echo "Key bukan publishable key"; exit 1;; esac
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      - name: Build
+        run: npm run build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      - name: Pastikan tidak ada rahasia di hasil build
+        run: |
+          if grep -rEl 'sb_secret_[A-Za-z0-9_-]{10,}|SUPABASE_DB_PASSWORD' dist; then echo "Rahasia terdeteksi di dist"; exit 1; fi
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  terbit:
+    needs: bangun
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

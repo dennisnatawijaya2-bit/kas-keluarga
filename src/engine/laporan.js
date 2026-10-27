@@ -20,7 +20,8 @@ export function ringkasBulan({ transaksi, kategori, anggaran = [], bulan }) {
     else continue;
     pakai.set(t.kategori_id, (pakai.get(t.kategori_id) || 0) + t.jumlah);
   }
-  const ang = new Map(anggaran.filter((a) => a.bulan === awalBulan(bulan)).map((a) => [a.kategori_id, a.jumlah]));
+  // jumlah 0 = "tanpa anggaran" (mengosongkan kolom anggaran menyimpan 0)
+  const ang = new Map(anggaran.filter((a) => a.bulan === awalBulan(bulan) && a.jumlah > 0).map((a) => [a.kategori_id, a.jumlah]));
   const perKategori = kategori
     .filter((k) => pakai.has(k.id) || ang.has(k.id))
     .map((k) => {

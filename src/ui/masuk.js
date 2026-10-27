@@ -25,10 +25,10 @@ export function halamanMasuk({ setelahMasuk }) {
     e.preventDefault();
     galat.textContent = '';
     tombol.disabled = true; tombol.textContent = 'Memeriksa…';
-    const { data, error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: sandi.value });
+    const { error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: sandi.value });
     tombol.disabled = false; tombol.textContent = 'Masuk';
     if (error) { galat.textContent = terjemah(error); return; }
-    await setMeta('user', { id: data.user.id, email: data.user.email });
+    // user lokal dicatat di mulai() SETELAH dibandingkan dengan pemakai HP sebelumnya
     setelahMasuk();
   } },
   h('div', { class: 'logo', 'aria-hidden': 'true' }, '💰'),

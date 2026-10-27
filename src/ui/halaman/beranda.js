@@ -1,11 +1,19 @@
-import { h, toast } from '../dom.js';
+import { h, toast, konfirmasi } from '../dom.js';
 import { S, tandaiWajar, tanggalHariIni, dompetAktif, bisaTulis } from '../../state.js';
 import { ringkasBulan, peringatan, saldoDompet, aktif } from '../../engine/laporan.js';
 import { bulanDari, namaBulan } from '../../engine/tanggal.js';
 import { rp } from '../../engine/uang.js';
-import { status, buangAntrian } from '../../data/sinkron.js';
-import { db } from '../../data/lokal.js';
+import { status, buangAntrian, kirimUlang, daftarDitolak } from '../../data/sinkron.js';
 import { barisTransaksi, barAnggaran, kosong, judulBagian } from '../komponen.js';
+
+/** Uraian manusiawi item antrian: "Transaksi keluar Rp 25.000 — Makan, 27 Okt". */
+function uraiAntrian(a) {
+  const b = a.baris || {};
+  const kat = S.kategori.find((k) => k.id === b.kategori_id)?.nama;
+  if (a.tabel === 'transaksi') return `Catatan ${b.jenis} ${rp(b.jumlah)}${kat ? ` — ${kat}` : ''}, ${b.tanggal}${b.catatan ? ` (${b.catatan})` : ''}`;
+  if (a.tabel === 'anggaran') return `Anggaran ${kat || ''} ${b.bulan?.slice(0, 7)}: ${rp(b.jumlah)}`;
+  return `${a.tabel === 'kategori' ? 'Kategori' : 'Dompet'} "${b.nama}"`;
+}
 
 export function beranda() {
   const bulan = bulanDari(tanggalHariIni());
@@ -23,13 +31,20 @@ export function beranda() {
       barAnggaran(r.totalAnggaran - r.sisaAnggaran, r.totalAnggaran)) :
       h('a', { class: 'tombol teks', href: `#/anggaran/${bulan}` }, 'Atur anggaran bulan ini →')));
 
-  // catatan yang ditolak server
+  // catatan yang ditolak server: tampilkan isinya, beri pilihan kirim ulang atau buang
   if (status.gagal) {
-    const kotak = h('section', { class: 'kartu peringatan tinggi' }, h('h2', {}, 'Catatan ditolak server'));
-    db.antrian.filter((a) => !!a.galat).toArray().then((rows) => {
-      for (const a of rows) kotak.append(h('div', { class: 'baris-antara' },
-        h('small', {}, `${a.tabel}: ${a.galat}`),
-        h('button', { class: 'tombol kedua kecil', onclick: async () => { await buangAntrian(a.no); toast('Catatan dibuang'); } }, 'Buang')));
+    const kotak = h('section', { class: 'kartu peringatan tinggi' }, h('h2', {}, 'Catatan ditolak server'),
+      h('p', { class: 'redup kecil' }, 'Biasanya karena data tidak sesuai aturan (mis. nama kategori sudah dipakai). Coba kirim ulang; bila tetap ditolak, buang lalu catat ulang.'));
+    daftarDitolak().then((rows) => {
+      for (const a of rows) kotak.append(h('div', { class: 'kat-baris' },
+        h('strong', {}, uraiAntrian(a)),
+        h('small', { class: 'redup' }, `Alasan: ${a.galat}`),
+        h('div', { class: 'aksi' },
+          h('button', { class: 'tombol kedua kecil', onclick: async () => { await kirimUlang(a.no); toast('Dicoba kirim ulang'); } }, 'Kirim ulang'),
+          h('button', { class: 'tombol bahaya kecil', onclick: async () => {
+            if (!(await konfirmasi({ judul: 'Buang catatan ini?', isi: uraiAntrian(a), ok: 'Buang', bahaya: true }))) return;
+            await buangAntrian(a.no); toast('Catatan dibuang');
+          } }, 'Buang'))));
     });
     wadah.append(kotak);
   }

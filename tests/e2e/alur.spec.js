@@ -1,4 +1,4 @@
-﻿// E2E: masuk â†’ catat â†’ riwayat â†’ ringkasan â†’ offline â†’ sinkron tepat sekali. Memakai akun UJI (keluarga A).
+// E2E: masuk → catat → riwayat → ringkasan → offline → sinkron tepat sekali. Memakai akun UJI (keluarga A).
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
