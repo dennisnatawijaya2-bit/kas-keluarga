@@ -1,0 +1,28 @@
+{
+  "name": "kas-keluarga",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "PWA pencatat pengeluaran bulanan keluarga (Supabase)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test tests/unit/",
+    "db:push": "node scripts/db.mjs push",
+    "db:status": "node scripts/db.mjs status",
+    "test:rls": "node --test tests/rls/",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "dexie": "^4.4.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "dotenv": "^18.0.9",
+    "pg": "^8.23.1",
+    "vite": "^8.3.5",
+    "vite-plugin-pwa": "^2.0.0"
+  }
+}

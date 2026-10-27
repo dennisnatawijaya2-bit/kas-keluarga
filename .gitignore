@@ -1,0 +1,15 @@
+node_modules/
+dist/
+dev-dist/
+tmp/
+.db-host
+.env
+.env.*
+!.env.example
+*.local
+test-results/
+playwright-report/
+playwright/.cache/
+cadangan/
+*.dump
+*.sql.gz
