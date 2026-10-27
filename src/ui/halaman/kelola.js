@@ -8,6 +8,7 @@ import { buatCsv, kolomTransaksi } from '../../engine/csv.js';
 import { bulanDari, geserBulan, namaBulan, akhirBulan } from '../../engine/tanggal.js';
 import { rp, ribuan, bacaRupiah } from '../../engine/uang.js';
 import { judulBagian, kosong } from '../komponen.js';
+import { keEmail, keUserid } from '../../engine/akun.js';
 
 const kembali = () => h('a', { class: 'tombol teks', href: '#/kelola' }, '‹ Kelola');
 const menu = (href, ikon, judul, ket) => h('a', { class: 'menu', href },
@@ -16,8 +17,8 @@ const menu = (href, ikon, judul, ket) => h('a', { class: 'menu', href },
 export function kelola({ keluar, versi }) {
   const saya = S.anggota.find((a) => a.user_id === S.user?.id);
   return h('div', { class: 'halaman' },
-    h('div', { class: 'kartu' }, h('strong', {}, saya?.nama_tampilan || S.user?.email), h('br'),
-      h('small', { class: 'redup' }, `${S.user?.email} · peran: ${S.peran || '—'}`)),
+    h('div', { class: 'kartu' }, h('strong', {}, saya?.nama_tampilan || keUserid(S.user?.email)), h('br'),
+      h('small', { class: 'redup' }, `${keUserid(S.user?.email)} · peran: ${S.peran || '—'}`)),
     h('nav', { class: 'kartu daftar', 'aria-label': 'Menu kelola' },
       menu(`#/anggaran/${bulanDari(tanggalHariIni())}`, '🎯', 'Anggaran', 'Batas pengeluaran per kategori per bulan'),
       menu('#/kelola/kategori', '🏷️', 'Kategori', 'Tambah, ubah, arsipkan'),
@@ -173,19 +174,21 @@ export function kelolaAnggota() {
           toast(a.aktif ? 'Dinonaktifkan' : 'Diaktifkan'); await sinkron(S.keluargaId); await muat(); location.reload();
         } }, a.aktif ? 'Nonaktifkan' : 'Aktifkan')) : null)));
 
-  const email = h('input', { type: 'email', required: true, placeholder: 'email akun anggota', 'aria-label': 'Email', autocapitalize: 'none' });
+  const email = h('input', { type: 'text', required: true, placeholder: 'nama pengguna anggota', 'aria-label': 'Nama pengguna', autocapitalize: 'none', autocorrect: 'off', spellcheck: false });
   const nama = h('input', { required: true, maxlength: 40, placeholder: 'nama panggilan', 'aria-label': 'Nama panggilan' });
   const peran = h('select', { 'aria-label': 'Peran' }, h('option', { value: 'anggota' }, 'anggota (boleh mencatat)'), h('option', { value: 'lihat' }, 'lihat saja'), h('option', { value: 'pemilik' }, 'pemilik'));
   const form = pemilik() ? h('form', { class: 'kartu', onsubmit: async (e) => {
     e.preventDefault();
     if (!navigator.onLine) return toast('Butuh internet untuk menambah anggota', 'galat');
-    const { error } = await sb.rpc('tambah_anggota', { p_keluarga: S.keluargaId, p_email: email.value, p_nama_tampilan: nama.value, p_peran: peran.value });
+    const alamat = keEmail(email.value);
+    if (!alamat) return toast('Nama pengguna tidak sah', 'galat');
+    const { error } = await sb.rpc('tambah_anggota', { p_keluarga: S.keluargaId, p_email: alamat, p_nama_tampilan: nama.value, p_peran: peran.value });
     if (error) return toast(error.message, 'galat');
     toast('Anggota ditambah'); await sinkron(S.keluargaId); await muat(); location.reload();
   } }, h('h2', {}, 'Tambah anggota'),
   h('ol', { class: 'redup kecil' },
-    h('li', {}, 'Buat akunnya dulu di dasbor Supabase: Authentication → Users → Add user → Create new user (centang Auto Confirm User).'),
-    h('li', {}, 'Isi email yang sama di bawah.'),
+    h('li', {}, 'Buat akunnya dulu di dasbor Supabase: Authentication → Users → Add user → Create new user, email = <nama pengguna>@kas-keluarga.test, centang Auto Confirm User.'),
+    h('li', {}, 'Isi nama penggunanya (tanpa @…) di bawah.'),
     h('li', {}, 'Berikan kata sandinya langsung ke orangnya (jangan lewat grup).')),
   email, nama, peran, h('button', { class: 'tombol utama lebar' }, 'Tambahkan')) : null;
   return h('div', { class: 'halaman' }, kembali(), judulBagian('Anggota keluarga'), daftar, form);

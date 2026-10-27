@@ -15,7 +15,7 @@ test('tangkapan layar panduan', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('button', { name: 'Masuk' })).toBeVisible();
   await foto('01_masuk');
-  await page.getByLabel('Email').fill(process.env.UJI_A_EMAIL);
+  await page.getByLabel('Nama pengguna').fill(process.env.UJI_A_EMAIL);
   await page.locator('#sandi').fill(process.env.UJI_A_PASSWORD);
   await page.getByRole('button', { name: 'Masuk' }).click();
   await expect(page.locator('.lencana')).toHaveText(/Tersimpan/, { timeout: 30_000 });

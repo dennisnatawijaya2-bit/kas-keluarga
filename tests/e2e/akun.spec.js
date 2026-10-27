@@ -9,7 +9,7 @@ dotenv.config({ path: path.resolve(AKAR, '..', '.env.uji'), quiet: true });
 
 async function masuk(page, k) {
   await page.goto('/');
-  await page.getByLabel('Email').fill(process.env[`UJI_${k}_EMAIL`]);
+  await page.getByLabel('Nama pengguna').fill(process.env[`UJI_${k}_EMAIL`]);
   await page.locator('#sandi').fill(process.env[`UJI_${k}_PASSWORD`]);
   await page.getByRole('button', { name: 'Masuk' }).click();
   await expect(page.locator('.lencana')).toHaveText(/Tersimpan/, { timeout: 30_000 });
@@ -56,4 +56,14 @@ test('ganti akun: data keluarga A tidak terbawa ke B', async ({ page }) => {
     r.onsuccess = () => { const q = r.result.transaction('keluarga').objectStore('keluarga').getAll(); q.onsuccess = () => ok(q.result.map((x) => x.nama)); };
   }));
   expect(namaKeluargaLokal).toEqual(['Keluarga Uji B']);
+});
+
+test('masuk cukup dengan nama pengguna (tanpa @domain)', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Nama pengguna').fill(process.env.UJI_A_EMAIL.split('@')[0].toUpperCase());
+  await page.locator('#sandi').fill(process.env.UJI_A_PASSWORD);
+  await page.getByRole('button', { name: 'Masuk' }).click();
+  await expect(page.locator('.kepala .judul')).toHaveText('Keluarga Uji A', { timeout: 30_000 });
+  await page.goto('/#/kelola');
+  await expect(page.locator('.kartu small').first()).toContainText(process.env.UJI_A_EMAIL.split('@')[0]);
 });

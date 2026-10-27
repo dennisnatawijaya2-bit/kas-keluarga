@@ -137,3 +137,15 @@ test('CSV: BOM, pemisah, kutip, cegah formula', () => {
   assert.ok(csv.startsWith('﻿tanggal;jenis;kategori'));
   assert.match(csv, /2026-10-02;keluar;Makan;Tunai;;50000;"'=HYPERLINK\(""x""\);""a""";Dennis/);
 });
+
+import { keEmail, keUserid } from '../../src/engine/akun.js';
+test('userid ↔ email login', () => {
+  assert.equal(keEmail(' Budi1990 '), 'budi1990@kas-keluarga.test');
+  assert.equal(keEmail('ani1990'), 'ani1990@kas-keluarga.test');
+  assert.equal(keEmail('orang@gmail.com'), 'orang@gmail.com');
+  assert.equal(keEmail('ab'), null);
+  assert.equal(keEmail('a b c'), null);
+  assert.equal(keEmail(''), null);
+  assert.equal(keUserid('budi1990@kas-keluarga.test'), 'budi1990');
+  assert.equal(keUserid('orang@gmail.com'), 'orang@gmail.com');
+});

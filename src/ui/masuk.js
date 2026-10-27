@@ -1,16 +1,17 @@
 import { sb } from '../data/supabase.js';
 import { setMeta } from '../data/lokal.js';
 import { h, toast } from './dom.js';
+import { keEmail } from '../engine/akun.js';
 
 const PESAN = {
-  'Invalid login credentials': 'Email atau kata sandi salah.',
+  'Invalid login credentials': 'Nama pengguna atau kata sandi salah.',
   'Email not confirmed': 'Akun belum dikonfirmasi. Minta pemilik keluarga memeriksa akunmu.',
   'Signups not allowed for this instance': 'Pendaftaran dibatasi. Minta pemilik keluarga membuatkan akun.',
 };
 const terjemah = (e) => PESAN[e?.message] || (/fetch|network/i.test(e?.message) ? 'Tidak ada koneksi internet.' : e?.message || 'Gagal.');
 
 export function halamanMasuk({ setelahMasuk }) {
-  const email = h('input', { type: 'email', id: 'email', autocomplete: 'username', required: true, inputmode: 'email', autocapitalize: 'none' });
+  const email = h('input', { type: 'text', id: 'email', autocomplete: 'username', required: true, autocapitalize: 'none', autocorrect: 'off', spellcheck: false, placeholder: 'mis. budi1990' });
   const sandi = h('input', { type: 'password', id: 'sandi', autocomplete: 'current-password', required: true, minlength: 6 });
   const galat = h('p', { class: 'galat', role: 'alert' });
   const tombol = h('button', { type: 'submit', class: 'tombol utama lebar' }, 'Masuk');
@@ -25,7 +26,9 @@ export function halamanMasuk({ setelahMasuk }) {
     e.preventDefault();
     galat.textContent = '';
     tombol.disabled = true; tombol.textContent = 'Memeriksa…';
-    const { error } = await sb.auth.signInWithPassword({ email: email.value.trim(), password: sandi.value });
+    const alamat = keEmail(email.value);
+    if (!alamat) { tombol.disabled = false; tombol.textContent = 'Masuk'; galat.textContent = 'Nama pengguna tidak sah.'; return; }
+    const { error } = await sb.auth.signInWithPassword({ email: alamat, password: sandi.value });
     tombol.disabled = false; tombol.textContent = 'Masuk';
     if (error) { galat.textContent = terjemah(error); return; }
     // user lokal dicatat di mulai() SETELAH dibandingkan dengan pemakai HP sebelumnya
@@ -33,8 +36,8 @@ export function halamanMasuk({ setelahMasuk }) {
   } },
   h('div', { class: 'logo', 'aria-hidden': 'true' }, '💰'),
   h('h1', {}, 'Kas Keluarga'),
-  h('p', { class: 'redup' }, 'Masuk dengan akun yang dibuatkan pemilik keluarga.'),
-  h('label', { for: 'email' }, 'Email'), email,
+  h('p', { class: 'redup' }, 'Masuk dengan nama pengguna & kata sandi dari pemilik keluarga.'),
+  h('label', { for: 'email' }, 'Nama pengguna'), email,
   h('label', { for: 'sandi' }, 'Kata sandi'), h('div', { class: 'sandi' }, sandi, lihat),
   galat, tombol);
   return h('div', { class: 'tengah' }, form);
@@ -53,7 +56,7 @@ export function halamanTanpaKeluarga({ keluar, setelahBuat, offline }) {
   return h('div', { class: 'tengah' },
     h('div', { class: 'kartu' },
       h('h2', {}, 'Belum terdaftar di keluarga mana pun'),
-      h('p', {}, 'Bila kamu anggota keluarga, minta pemilik menambahkan email kamu lewat menu Kelola → Anggota, lalu buka ulang aplikasi.'),
+      h('p', {}, 'Bila kamu anggota keluarga, minta pemilik menambahkan nama penggunamu lewat menu Kelola → Anggota, lalu buka ulang aplikasi.'),
       h('button', { class: 'tombol kedua lebar', onclick: () => location.reload() }, 'Periksa lagi')),
     h('form', { class: 'kartu', onsubmit: async (e) => {
       e.preventDefault();

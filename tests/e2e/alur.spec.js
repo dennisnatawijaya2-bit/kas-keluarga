@@ -20,7 +20,7 @@ test.afterAll(async () => { await sb.from('transaksi').delete().eq('keluarga_id'
 
 async function masuk(page) {
   await page.goto('/');
-  await page.getByLabel('Email').fill(process.env.UJI_A_EMAIL);
+  await page.getByLabel('Nama pengguna').fill(process.env.UJI_A_EMAIL);
   await page.locator('#sandi').fill(process.env.UJI_A_PASSWORD);
   await page.getByRole('button', { name: 'Masuk' }).click();
   await expect(page.locator('.kepala .judul')).toHaveText('Keluarga Uji A');

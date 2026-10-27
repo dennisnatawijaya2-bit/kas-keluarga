@@ -31,7 +31,7 @@ test('unduh cadangan A lalu pulihkan ke B: jumlah & total sama', async ({ browse
 
   const masuk = async (page, k) => {
     await page.goto('/');
-    await page.getByLabel('Email').fill(process.env[`UJI_${k}_EMAIL`]);
+    await page.getByLabel('Nama pengguna').fill(process.env[`UJI_${k}_EMAIL`]);
     await page.locator('#sandi').fill(process.env[`UJI_${k}_PASSWORD`]);
     await page.getByRole('button', { name: 'Masuk' }).click();
     await expect(page.locator('.lencana')).toHaveText(/Tersimpan/, { timeout: 30_000 });
