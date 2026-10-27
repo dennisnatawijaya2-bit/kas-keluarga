@@ -37,7 +37,7 @@ globalThis.navigator ??= {};
 Object.defineProperty(globalThis.navigator, 'onLine', { value: true, configurable: true });
 
 const { db } = await import('../../src/data/lokal.js');
-const { tulis, sinkron } = await import('../../src/data/sinkron.js');
+const { tulis, sinkron, hentikanSinkron } = await import('../../src/data/sinkron.js');
 
 const K = 'kel-1';
 const trx = (id, jumlah, extra = {}) => ({ id, keluarga_id: K, jenis: 'keluar', tanggal: '2026-10-27', jumlah, kategori_id: 'k', dompet_id: 'd', dompet_tujuan_id: null, catatan: null, wajar: false, dihapus_at: null, ...extra });
@@ -76,4 +76,18 @@ test('kiriman ulang tetap satu baris; hapus lunak ikut terkirim', async () => {
   await sinkron(K);
   assert.equal(server.transaksi.size, 1);
   assert.ok(server.transaksi.get('t2').dihapus_at);
+});
+
+test('setelah dihentikan (keluar/ganti akun), run lama tidak mengirim item berikutnya', async () => {
+  let lepas;
+  tahanUpsert = new Promise((r) => { lepas = r; });
+  await tulis('transaksi', trx('a1', 1000));
+  await tulis('transaksi', trx('a2', 2000));
+  const jalan = sinkron(K);                     // upsert a1 tertahan
+  await new Promise((r) => setTimeout(r, 20));
+  const henti = hentikanSinkron();               // keluar: generasi naik
+  await db.antrian.clear();                      // kosongkanLokal
+  lepas(); tahanUpsert = null;
+  await henti; await jalan;
+  assert.ok(!server.transaksi.has('a2'), 'a2 tidak boleh terkirim setelah keluar');
 });

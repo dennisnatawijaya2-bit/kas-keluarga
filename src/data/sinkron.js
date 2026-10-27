@@ -88,10 +88,13 @@ async function ditolakPermanen(error) {
 
 class GalatSementara extends Error {}
 
-async function kirim() {
+async function kirim(gen) {
   const antrian = await db.antrian.orderBy('no').toArray();
   for (const a of antrian) {
+    // keluar/ganti akun terjadi selama kiriman → berhenti, jangan kirim dengan sesi akun lain
+    if (gen !== generasi) throw new GalatSementara('dihentikan');
     if (a.galat) continue; // menunggu keputusan pengguna
+    if (!(await db.antrian.get(a.no))) continue; // sudah dibuang/dikosongkan
     const { error } = await sb.from(a.tabel).upsert(a.baris, KONFLIK[a.tabel] ? { onConflict: KONFLIK[a.tabel] } : undefined);
     if (!error) {
       // hapus hanya bila belum diubah lagi selama kiriman berjalan
@@ -184,12 +187,14 @@ async function tarik(keluargaId, gen) {
 }
 
 let berjalan = null;
+let berjalanGen = -1;
 let ulangi = false;
 let generasi = 0;
 
 /** Kirim antrian lalu tarik perubahan. Aman dipanggil berkali-kali (digabung). Mengembalikan true bila data berubah. */
 export async function sinkron(keluargaId) {
-  if (berjalan) { ulangi = true; return berjalan; }
+  // run milik generasi lama (sudah dihentikan) tidak boleh dipakai ulang
+  if (berjalan && berjalanGen === generasi) { ulangi = true; return berjalan; }
   const gen = generasi;
   berjalan = (async () => {
     let berubah = false;
@@ -199,7 +204,7 @@ export async function sinkron(keluargaId) {
       if (!navigator.onLine) { status.galat = 'offline'; break; }
       try {
         status.mengirim = true; kabari();
-        await kirim();
+        await kirim(gen);
         status.mengirim = false; status.menarik = true; kabari();
         if (keluargaId && gen === generasi) berubah = (await tarik(keluargaId, gen)) || berubah;
         status.terakhir = new Date().toISOString();
@@ -214,7 +219,9 @@ export async function sinkron(keluargaId) {
     } while (ulangi && gen === generasi);
     return berubah || status.antrian !== antrianAwal;
   })();
-  try { return await berjalan; } finally { berjalan = null; }
+  const milik = berjalan;
+  berjalanGen = gen;
+  try { return await milik; } finally { if (berjalan === milik) berjalan = null; }
 }
 
 // ---- penjadwal: setelah tulis, saat online, saat aplikasi kembali ke depan, tiap 60 detik
